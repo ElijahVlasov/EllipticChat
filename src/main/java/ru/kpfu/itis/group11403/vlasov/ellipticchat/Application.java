@@ -45,8 +45,47 @@ public class Application {
 			isServer = result == JOptionPane.YES_OPTION;	
 		}
 		
+	}	
+	
+	public void run() {
+		
+		view = new JTextPaneChatView(messagePane);
+		
+		if(isServer) {
+			runServer();
+		} else {
+			runClient();
+		}
+		
 	}
 	
+	public static void main(String[] args) {
+	
+		Application app = new Application();
+		app.run();
+		
+	}
+	
+	private void sendClicked() {
+		
+		if(inputTextArea.getText().isEmpty()) {
+			return;
+		}
+		
+		String message = inputTextArea.getText();
+		
+		if(chat != null && chat.isConnected()) {
+			chat.sendMessage(message);
+		} else {
+			view.showInfoMessage("Can't send message");
+			return;
+		}
+		
+		view.showMessage("Me", message);
+		inputTextArea.setText(""); // Очистить поле ввода
+		
+	}
+
 	private void initGui() {
 		
 		frame 	    	= new JFrame("EllipticChat");
@@ -77,23 +116,7 @@ public class Application {
 		messagePaneScrollPane.setPreferredSize(new Dimension(300, 500));
 		
 		sendButton.addActionListener((ActionEvent event)->{
-			
-			if(inputTextArea.getText().isEmpty()) {
-				return;
-			}
-			
-			String message = inputTextArea.getText();
-			
-			if(chat != null && chat.isConnected()) {
-				chat.sendMessage(message);
-			} else {
-				view.showInfoMessage("Can't send message");
-				return;
-			}
-			
-			view.showMessage("Me", message);
-			inputTextArea.setText("");
-			
+			sendClicked();
 		});
 		
 		frame.setLayout(new BorderLayout());
@@ -101,13 +124,13 @@ public class Application {
 		frame.add(inputTextScrollPane);
 		frame.add(sendButton, BorderLayout.PAGE_END);
 		
-		
 	}
 	
 	private void runServer() {
 		
 		try(ServerSocket serverSocket = new ServerSocket(SERVER_PORT)) {
-			
+		
+			// Ждем клиента
 			Socket sock = serverSocket.accept();
 			
 			try(SocketChat chat = new SocketChat(view, sock)) {
@@ -115,6 +138,8 @@ public class Application {
 				this.chat = chat;
 				
 				while(chat.isConnected()) {
+				
+					// Пока подключены пытаемся получить сообщения от юзера
 					
 					String message = chat.receiveMessage();
 					
@@ -145,7 +170,7 @@ public class Application {
 		
 		String addr = JOptionPane.showInputDialog("Введите адрес сервера");
 		
-		if(addr == null) {
+		if(addr == null) { // Если пользователь нажал отмену
 			frame.dispose();
 			return null;
 		}
@@ -211,24 +236,4 @@ public class Application {
 		
 	}
 	
-	
-	public void run() {
-		
-		view = new JTextPaneChatView(messagePane);
-		
-		if(isServer) {
-			runServer();
-		} else {
-			runClient();
-		}
-		
-	}
-	
-	public static void main(String[] args) {
-	
-		Application app = new Application();
-		app.run();
-		
-	}
-
 }

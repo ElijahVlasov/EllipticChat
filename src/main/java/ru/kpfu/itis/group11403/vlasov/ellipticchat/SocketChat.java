@@ -2,10 +2,10 @@ package ru.kpfu.itis.group11403.vlasov.ellipticchat;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-
-import org.apache.commons.lang3.SerializationUtils;
 
 import ru.kpfu.itis.group11403.vlasov.ellipticcurves.EllipticCrypto;
 import ru.kpfu.itis.group11403.vlasov.ellipticcurves.Point;
@@ -15,6 +15,9 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 	private Socket socket;
 	
 	private ChatView view;
+	
+	// Если происходит какая-то ошибка, то флажок меняется на false
+	private boolean isSuccess = true;
 	
 	public SocketChat(ChatView view, Socket socket) throws IOException, ChatException {
 		
@@ -44,11 +47,11 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 
 	@Override
 	public boolean isConnected() {
-		return socket.isConnected() && !socket.isClosed();
+		return socket.isConnected() && !socket.isClosed() && isSuccess;
 	}
 	
 	@Override
-	protected synchronized void sendRawMessage(byte[] message) {
+	protected void sendRawMessage(byte[] message) {
 	
 		if(!socket.isConnected()) {
 			return;
@@ -64,12 +67,13 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 			
 		} catch (IOException e) {
 			view.showInfoMessage(e.toString());
+			isSuccess = false;
 		}
 		
 	}
 
 	@Override
-	protected synchronized byte[] recieveRawMessage() {
+	protected EllipticCrypto.CryptedByte[] recieveRawMessage() {
 	
 		if(!socket.isConnected()) {
 			return null;
@@ -79,18 +83,26 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 			
 			InputStream is = socket.getInputStream();
 			
-			byte[] bytes = new byte[is.available()];
+			ObjectInputStream objectInputStream = new ObjectInputStream(is);
 			
-			is.read(bytes);
+			EllipticCrypto.CryptedByte[] cryptedBytes =
+					(EllipticCrypto.CryptedByte[]) objectInputStream.readObject();
 			
-			if(bytes.length == 0) {
-				return null;
-			}
-			
-			return bytes;
+			return cryptedBytes;
 			
 		} catch (IOException e) {
+			
 			view.showInfoMessage(e.toString());
+			e.printStackTrace();
+			
+			isSuccess = false;
+			
+		} catch (ClassNotFoundException e) {
+			
+			e.printStackTrace();
+		
+			isSuccess = false;
+			
 		}
 		
 		return null;
@@ -103,17 +115,21 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 		try {
 			
 			OutputStream os = socket.getOutputStream();
+			ObjectOutputStream objectOutputStream = new ObjectOutputStream(os);
 			
 			view.showInfoMessage("Sending public key...");
 			
-			byte[] bytes = SerializationUtils.serialize(publicKey);
+			objectOutputStream.writeObject(publicKey);
 			
-			System.out.println(bytes.length);
-			os.write(bytes);
 			os.flush();
 			
 		} catch (IOException e) {
+			
 			view.showInfoMessage(e.toString());
+			e.printStackTrace();
+		
+			isSuccess = false;
+			
 		}
 		
 	}
@@ -126,18 +142,9 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 		try {
 			
 			InputStream is = socket.getInputStream();
-				
-			byte[] bytes;
+			ObjectInputStream objectInputStream = new ObjectInputStream(is);
 			
-			do {
-			
-				bytes = new byte[is.available()];
-				
-			} while(bytes.length == 0);
-			
-			is.read(bytes);
-			
-			publicKey = SerializationUtils.deserialize(bytes);
+			publicKey = (Point) objectInputStream.readObject();
 			
 			publicKey.setEllipticCurve(EllipticCrypto.P192.getEc());
 			publicKey.setMod(EllipticCrypto.P192.getEc().getMod());
@@ -145,7 +152,17 @@ public class SocketChat extends EncryptedChat implements AutoCloseable {
 			view.showInfoMessage("Open key received");
 			
 		} catch (IOException e) {
+		
 			view.showInfoMessage(e.toString());
+		
+			isSuccess = false;
+			
+		} catch (ClassNotFoundException e) {
+			
+			e.printStackTrace();
+			
+			isSuccess = false;
+			
 		}	
 		
 		return publicKey;

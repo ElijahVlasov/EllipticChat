@@ -3,6 +3,7 @@ package ru.kpfu.itis.group11403.vlasov.ellipticchat;
 import java.math.BigInteger;
 
 import ru.kpfu.itis.group11403.vlasov.ellipticcurves.EllipticCrypto;
+import ru.kpfu.itis.group11403.vlasov.ellipticcurves.EllipticCrypto.CryptedByte;
 import ru.kpfu.itis.group11403.vlasov.ellipticcurves.Point;
 
 public abstract class EncryptedChat {
@@ -25,7 +26,7 @@ public abstract class EncryptedChat {
 
 	public String receiveMessage() {
 
-		byte[] cryptedMsg = recieveRawMessage();
+		CryptedByte[] cryptedMsg = recieveRawMessage();
 
 		if(cryptedMsg == null) {
 			return null;
@@ -49,7 +50,7 @@ public abstract class EncryptedChat {
 
 	protected abstract void sendRawMessage(byte[] message);
 
-	protected abstract byte[] recieveRawMessage();
+	protected abstract EllipticCrypto.CryptedByte[] recieveRawMessage();
 
 	protected abstract void sendPublicKey(Point publicKey);
 
