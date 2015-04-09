@@ -67,12 +67,20 @@ public abstract class EllipticCrypto {
 		return Point.multiply(privateKey, publicKey);
 		
 	}
+
+	/**
+	 * Зашифровать сообщение 
+	 * @param message Сообщение
+	 * @param recipientPublicKey Открытый ключ получателя
+	 * @param info Данные шифрования
+	 * @return Зашифрованное сообщение или null в случае некоретных входных данных
+	 */
 	
-	public static byte[] encrypt(byte[] message, Point publicKey, CryptoInfo info) {
+	public static byte[] encrypt(byte[] message, Point recipientPublicKey, CryptoInfo info) {
 		
 		ByteArrayOutputStream os = new ByteArrayOutputStream();
 		
-		if(message == null) {
+		if(message == null || recipientPublicKey == null || info == null) {
 			return null;
 		}
 		
@@ -82,7 +90,7 @@ public abstract class EllipticCrypto {
 		
 		for (int i = 0; i < cryptedBytes.length; i++) {
 
-			CryptedByte cb = encryptByte(message[i], publicKey, info);
+			CryptedByte cb = encryptByte(message[i], recipientPublicKey, info);
 
 			cryptedBytes[i] = cb;
 			
@@ -121,8 +129,8 @@ public abstract class EllipticCrypto {
 			// После десериализации эти поля null,
 			// поэтому устанавливаем значения
 			
-			cryptedByte.crypted.setEllipticCurve(info.ec);
-			cryptedByte.crypted.setMod(info.ec.getMod());
+			cryptedByte.hint.setEllipticCurve(info.ec);
+			cryptedByte.hint.setMod(info.ec.getMod());
 			
 			decodedBytesStream.write(decryptByte(cryptedByte, privateKey, info));
 			
@@ -133,7 +141,7 @@ public abstract class EllipticCrypto {
 		
 	}
 
-	private static CryptedByte encryptByte(byte b, Point publicKey, CryptoInfo info) {
+	private static CryptedByte encryptByte(byte b, Point recipientPublicKey, CryptoInfo info) {
 		
 		Random rand = new Random();
 		
@@ -148,10 +156,14 @@ public abstract class EllipticCrypto {
 		} while((k.compareTo(BigInteger.ZERO) < 0) || (k.compareTo(info.order) > 0));
 		
 		Point kG = Point.multiply(k, info.generator);
-		Point kP = Point.multiply(k, publicKey);
+		Point kP = Point.multiply(k, recipientPublicKey);
 		
-		cb.crypted = kG;
-		cb.hint = kP.getX().multiply(BigInteger.valueOf(b)).mod(info.ec.getMod());
+		// При отрицательных b могут быть проблемы при обычном кастовании
+		// Поэтому раcширяем до long таким образом
+		long longValue = b & 0xff;
+		
+		cb.hint    = kG;
+		cb.crypted = kP.getX().multiply(BigInteger.valueOf(longValue)).mod(info.ec.getMod());
 		
 		return cb;
 		
@@ -160,34 +172,36 @@ public abstract class EllipticCrypto {
 	private static byte decryptByte(CryptedByte cb, BigInteger privateKey, CryptoInfo info) {
 		
 		// D = privateKey * cb.crypted
-		Point d = Point.multiply(privateKey, cb.crypted);
+		Point d = Point.multiply(privateKey, cb.hint);
 				
 		// c * D_x^(-1)
-		BigInteger decodedByte = cb.hint.multiply(d.getX().modInverse(info.ec.getMod()));
+		BigInteger decodedByte = cb.crypted.multiply(d.getX().modInverse(info.ec.getMod()));
 		
-		return decodedByte.mod(info.ec.getMod()).byteValue();
+		byte[] ar = decodedByte.mod(info.ec.getMod()).toByteArray(); 
+	
+		return ar[ar.length - 1];
 		
 	}
 	
 	public static class CryptedByte implements Serializable {
 		
-		private Point crypted;
-		private BigInteger hint;
+		private Point hint;
+		private BigInteger crypted;
 		
-		public Point getCrypted() {
-			return crypted;
-		}
-		
-		public void setCrypted(Point crypted) {
-			this.crypted = crypted;
-		}
-		
-		public BigInteger getHint() {
+		public Point getHint() {
 			return hint;
 		}
 		
-		public void setHint(BigInteger hint) {
-			this.hint = hint;
+		public void setHint(Point crypted) {
+			this.hint = crypted;
+		}
+		
+		public BigInteger getCrypted() {
+			return crypted;
+		}
+		
+		public void setCrypted(BigInteger hint) {
+			this.crypted = crypted;
 		}
 		
 	}
