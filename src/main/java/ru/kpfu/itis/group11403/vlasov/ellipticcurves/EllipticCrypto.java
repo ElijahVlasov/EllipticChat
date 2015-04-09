@@ -177,9 +177,7 @@ public abstract class EllipticCrypto {
 		// c * D_x^(-1)
 		BigInteger decodedByte = cb.crypted.multiply(d.getX().modInverse(info.ec.getMod()));
 		
-		byte[] ar = decodedByte.mod(info.ec.getMod()).toByteArray(); 
-	
-		return ar[ar.length - 1];
+		return decodedByte.mod(info.ec.getMod()).byteValue();
 		
 	}
 	
@@ -200,7 +198,7 @@ public abstract class EllipticCrypto {
 			return crypted;
 		}
 		
-		public void setCrypted(BigInteger hint) {
+		public void setCrypted(BigInteger crypted) {
 			this.crypted = crypted;
 		}
 		
